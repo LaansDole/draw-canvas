@@ -26,13 +26,15 @@
 </style>
 </head>
 <body>
-<div id="wrap" style="background: #fff url('atilla.png') center / cover no-repeat;">
+<div id="wrap">
   <canvas id="c"></canvas>
   <button id="save" style="right:100px;">Save</button>
   <button id="clear">Erase</button>
 </div>
+<script src="background.js"></script>
 <script>
   const wrap = document.getElementById('wrap');
+  wrap.style.background = `#fff url(${BG}) center / cover no-repeat`;
   const canvas = document.getElementById('c');
   const ctx = canvas.getContext('2d');
   let strokes = [];   // points stored as 0-1 so drawings survive resizing
@@ -90,39 +92,27 @@
   window.addEventListener('resize', resize);
   resize();
   document.getElementById('save').addEventListener('click', () => {
-  const out = document.createElement('canvas');
-  out.width = canvas.width;
-  out.height = canvas.height;
-  const o = out.getContext('2d');
-  o.fillStyle = '#fff';
-  o.fillRect(0, 0, out.width, out.height);
+    const out = document.createElement('canvas');
+    out.width = canvas.width;
+    out.height = canvas.height;
+    const o = out.getContext('2d');
+    o.fillStyle = '#fff';
+    o.fillRect(0, 0, out.width, out.height);
 
-  function finish() {
-    try {
+    const img = new Image();
+    img.onload = () => {
+      // same "cover" crop as the CSS background
+      const s = Math.max(out.width / img.width, out.height / img.height);
+      const w = img.width * s, h = img.height * s;
+      o.drawImage(img, (out.width - w) / 2, (out.height - h) / 2, w, h);
+      o.drawImage(canvas, 0, 0);
       const a = document.createElement('a');
-      a.href = out.toDataURL('atilla/png');
+      a.href = out.toDataURL('image/png');
       a.download = 'atilla.png';
       a.click();
-    } catch (e) {
-      alert('Could not save: ' + e.message);
-    }
-  }
-
-  const img = new Image();
-  img.onload = () => {
-    const s = Math.max(out.width / img.width, out.height / img.height);
-    const w = img.width * s, h = img.height * s;
-    o.drawImage(img, (out.width - w) / 2, (out.height - h) / 2, w, h);
-    o.drawImage(canvas, 0, 0);
-    finish();
-  };
-  img.onerror = () => {
-    alert('Background image not found, saving the drawing only.');
-    o.drawImage(canvas, 0, 0);
-    finish();
-  };
-  img.src = 'atilla.png';
-});
+    };
+    img.src = BG;
+  });
 </script>
 </body>
 </html>
