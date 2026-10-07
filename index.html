@@ -29,6 +29,8 @@
 <div id="wrap" style="background: #fff url('atilla.png') center / cover no-repeat;">
   <canvas id="c"></canvas>
   <button id="save" style="right:100px;">Save</button>
+  <button id="bg" style="right:180px;">Background</button>
+  <input id="bgfile" type="file" accept="image/*" hidden>
   <button id="clear">Erase</button>
 </div>
 <script>
@@ -37,6 +39,7 @@
   const ctx = canvas.getContext('2d');
   let strokes = [];   // points stored as 0-1 so drawings survive resizing
   let current = null;
+  let bgSrc = 'atilla.png';  // replaced by a blob: URL when the user picks an image
 
   function resize() {
     const dpr = window.devicePixelRatio || 1;
@@ -86,28 +89,57 @@
   canvas.addEventListener('pointercancel', end);
 
   document.getElementById('clear').addEventListener('click', () => { strokes = []; render(); });
+  const bgfile = document.getElementById('bgfile');
+  document.getElementById('bg').addEventListener('click', () => bgfile.click());
+  bgfile.addEventListener('change', () => {
+    const file = bgfile.files[0];
+    if (!file) return;
+    if (bgSrc.startsWith('blob:')) URL.revokeObjectURL(bgSrc);
+    // blob: URLs are same-origin, so the export canvas is never tainted, even from file://
+    bgSrc = URL.createObjectURL(file);
+    wrap.style.backgroundImage = `url("${bgSrc}")`;
+    bgfile.value = '';
+  });
 
   window.addEventListener('resize', resize);
   resize();
   document.getElementById('save').addEventListener('click', () => {
-  const out = document.createElement('canvas');
-  out.width = canvas.width;
-  out.height = canvas.height;
-  const o = out.getContext('2d');
-  o.fillStyle = '#fff';
-  o.fillRect(0, 0, out.width, out.height);
+  // a canvas stays tainted forever once a file:// image is drawn, so each attempt gets a fresh one
+  function blank() {
+    const c = document.createElement('canvas');
+    c.width = canvas.width;
+    c.height = canvas.height;
+    const x = c.getContext('2d');
+    x.fillStyle = '#fff';
+    x.fillRect(0, 0, c.width, c.height);
+    return c;
+  }
+
+  function download(c) {
+    const a = document.createElement('a');
+    a.href = c.toDataURL('image/png');
+    a.download = 'atilla.png';
+    a.click();
+  }
+
+  function drawingOnly() {
+    const c = blank();
+    c.getContext('2d').drawImage(canvas, 0, 0);
+    return c;
+  }
 
   function finish() {
     try {
-      const a = document.createElement('a');
-      a.href = out.toDataURL('atilla/png');
-      a.download = 'atilla.png';
-      a.click();
+      download(out);
     } catch (e) {
-      alert('Could not save: ' + e.message);
+      // file:// pages taint the canvas when drawing atilla.png; serve over http to keep the background
+      if (e.name !== 'SecurityError') return alert('Could not save: ' + e.message);
+      alert('Background cannot be exported when opened as a local file; saving the drawing only. Pick it with "Background" or serve over http to include it.');
+      download(drawingOnly());
     }
   }
 
+  const out = blank(), o = out.getContext('2d');
   const img = new Image();
   img.onload = () => {
     const s = Math.max(out.width / img.width, out.height / img.height);
@@ -118,10 +150,9 @@
   };
   img.onerror = () => {
     alert('Background image not found, saving the drawing only.');
-    o.drawImage(canvas, 0, 0);
-    finish();
+    download(drawingOnly());
   };
-  img.src = 'atilla.png';
+  img.src = bgSrc;
 });
 </script>
 </body>
